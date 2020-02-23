@@ -1,0 +1,700 @@
+//#define RRRRRRRRRRRRRRR
+//#ifndef RRRRRRRRRRRRRRR
+///**
+// * Arduino versie: 1.8.9
+// * 
+// * Pin mapping
+// * 
+// * Top
+// * +-------------+---------+--------+------+---------+------+---------+
+// * | Pin board   | 43      | 44     | 45   | 46      | 47   | 48      |
+// * | Pin Arduino | 13      | 3      | 13   | 4       | 13   | 2       |
+// * | Function    | TRIG   | ECHO_FD | TRIG | ECHO_LD | TRIG | ECHO_RD |
+// * +-------------+---------+--------+------+---------+------+---------+
+// * 
+// * Center
+// * +-------------+-----+----+----+----+----+
+// * | Pin board   | 29  | 30 | 31 | 32 | 33 |
+// * | Pin Arduino | A4  | A3 | A2 | A1 | A0 |
+// * | Function    | OUT | S0 | S1 | S2 | S3 |
+// * +-------------+-----+----+----+----+----+
+// * 
+// * Bottom
+// * +-------------+---------+---------+---------+---+----+------+------+----+----+----+----+------+----+----+----+----+----+----+
+// * | Pin board   | 2       | 3       | 4       | 5 | 6  | 7    | 8    | 9  | 10 | 11 | 12 | 13   | 14 | 15 | 16 | 17 | 18 | 19 |
+// * | Pin Arduino | 3       | 4       | 2       |   | 7  | 8    | 9    | 10 | 11 | 12 |    | 13   |    |    |    |    |    |    |
+// * | Function    | ECHO_FD | ECHO_LD | ECHO_RD |   | LT | EN## | EN## | LB | RB | RT |    | TRIG |    |    |    |    |    |    |
+// * +-------------+---------+---------+---------+---+----+------+------+----+----+----+----+------+----+----+----+----+----+----+
+// */
+//
+///**
+// * Library configuration
+// */
+//#define BOOST_NO_CXX11_HDR_TYPEINDEX
+//#define BOOST_NO_CXX11_HDR_TUPLE
+//#define BOOST_NO_CXX11_HDR_ARRAY
+//#define BOOST_NO_CWCHAR
+//#define BOOST_NO_EXCEPTIONS
+//
+//#include <ArduinoSTL.h>
+//#include <boost_1_51_0.h>
+//#include <profielwerkstuk.h>
+//
+///**
+// * adjecency_list is unsopported on the AVR microcontroller due to missing a couple of std:: and boost:: classes.
+// * typedef boost::adjacency_list<boost::vecS, boost::vecS, ...> graph_t;
+// */
+//#include <boost/graph/adjacency_matrix.hpp>
+//#include <boost/graph/dijkstra_shortest_paths_no_color_map.hpp>
+//#include <boost/property_map/property_map.hpp>
+//#include <boost/graph/graph_traits.hpp>
+//#include <utility> // std::pair
+//#include <vector> // std::vector
+//#include <algorithm> // std::reverse
+//#include <iterator> // std::distance
+//
+//#include "hcsr04.h"
+//#include "tcs3200.h"
+//#include "l293d.h"
+//
+///**
+// * Type definitions
+// */
+//typedef std::pair<int, int> Point;
+//typedef boost::property<boost::edge_weight_t, int> WeightProperty;
+//typedef boost::adjacency_matrix<boost::undirectedS, Point, WeightProperty> graph_t;
+//typedef boost::graph_traits<graph_t>::vertex_descriptor vertex_descriptor;
+//
+//enum class State { EXPLORING, FOUND_END, FOUND_PATH, FINISHED };
+//enum Direction {
+//  N = 1, // Make sure N != 0 so N != NULL
+//  E,
+//  S,
+//  W
+//};
+//#define MAZE_SIZE = 4;
+//const unsigned int maze_size = 4;
+//
+///**
+// * Variable declarations
+// */
+//HCSR04 lds(13, 4); // Left distance sensor
+//HCSR04 rds(13, 2); // Right distance sensor
+//HCSR04 fds(13, 3); // Front distance sensor
+//L293D driver(10, 7, 12, 11, 8, 9); // L293D motor driver
+//TCS3200 tcs(A3, A2, A1, A0, A4); // TCS3200 color sensor
+//
+//graph_t graph = { sq(maze_size) + 1 };
+//std::vector<Point> s_path(16, {0, 0});
+//
+//int error = 0;
+//Point cp;
+//Point start;
+//Point finish;
+//Direction cd = Direction::N;
+//State state = State::EXPLORING;
+//
+//void setup() {
+//  Serial.begin(9600);
+//  
+//  driver.Initialize();
+//  tcs.Initialize();
+//  lds.Initialize();
+//  rds.Initialize();
+//  lds.Initialize();
+//  
+//  lds.set_cycles(5);
+//  lds.set_offset(0.442);
+//  rds.set_cycles(10);
+//  rds.set_offset(-0.2);
+//  fds.set_cycles(7);
+//  fds.set_offset(0.413);
+//  driver.Enable12();
+//  driver.Enable34();
+//
+//  cp = {0, 0};
+//  start = cp;
+//  finish = {1, 0};
+//  
+//  for (int x = 0; x < maze_size; x++) {
+//    for (int y = 0; y < maze_size; y++) {
+//      activate_vertex({x, y});
+//    }
+//  }
+//  
+//  /*
+////  drive_fwd_one(); // 1, 1
+////  rot_fwd_empty();
+////  drive_fwd_one(); // 2, 1
+////  rot_fwd_empty();
+////  rot_fwd_empty();
+////  drive_fwd_one(); // 1, 1
+////  rot_fwd_empty();
+////  drive_fwd_one(); // 1, 2
+////  rot_fwd_empty();
+////  rot_fwd_empty();
+////  drive_fwd_one(); // 1, 1
+////  rot_fwd_empty();
+////  drive_fwd_one(); // 0, 1
+////  rot_fwd_empty();
+////  rot_fwd_empty();
+////  rot_fwd_empty();
+////  drive_fwd_one(); // 0, 0
+////  rot_fwd_empty();
+////  rot_fwd_empty();
+////  rot_fwd_empty();
+////  drive_fwd_one(); // 1, 0
+//  */
+//  
+////  driver.TurnRight();
+////  delay(3000);
+////  driver.Stop();
+////  drive_fwd_one();
+// 
+//  activate_edge({0, 0}, {0, 1});
+//  activate_edge({1, 0}, {1, 1});
+//  activate_edge({0, 1}, {1, 1});
+//  /*
+//  activate_edge({1, 1}, {1, 0});
+//  activate_edge({1, 1}, {2, 1});
+//  activate_edge({1, 0}, {3, 0});
+//  activate_edge({3, 0}, {3, 3});
+//  activate_edge({3, 3}, {2, 3});
+//  activate_edge({2, 3}, {0, 3});
+//  activate_edge({0, 3}, {0, 2});
+//  activate_edge({0, 2}, {1, 2});
+//  activate_edge({0, 1}, {1, 1});
+//  activate_edge({2, 1}, {2, 3});
+//*/
+//  dijkstra__pws();
+//  print_graph();
+////
+////  Serial.println();
+////  Serial.println("Shortest_path:");
+////  for (auto const& p : s_path) {
+////    Serial.print(p.first);
+////    Serial.print(", ");
+////    Serial.println(p.second); 
+////  }
+////  
+//  Serial.println("Finished setup.");
+//}
+//
+//bool is_edge_in_shortest_path(Point source, Point target) {
+//  for (unsigned int i = 0; i < s_path.size(); i++) {
+//    if (s_path[i] == source) {
+//      if (i - 1 >= 0 && s_path[i - 1] == target) {
+//        return true;
+//      } else {
+//        return i + 1 < s_path.size() && s_path[i + 1] == target;
+//      }
+//    }
+//  }
+//  return false;
+//}
+//
+//void activate_edge(Point from, Point to) {
+//  auto vdf = boost::vertex(flatten_point(from), graph);
+//  auto vdt = boost::vertex(flatten_point(to), graph);
+//  auto out = boost::add_edge(vdf, vdt, graph);
+//  get(boost::edge_weight, graph)[out.first] = sqrt(sq(from.first - to.first) + sq(from.second - to.second));
+//}
+//
+//void activate_vertex(Point point) {
+//  auto vd = boost::vertex(flatten_point(point), graph);
+//  graph[vd].first = point.first;
+//  graph[vd].second = point.second;  
+//}
+//
+//unsigned int flatten_point(Point point) {
+//  return point.first + point.second * maze_size; // x + y * size
+//}
+//
+//bool drive_to(Point to) {
+//  Direction driving_dir = get_direction(cp, to);
+//  if (!driving_dir) {
+//    return false; // Diagonal movement not supported.
+//  }
+//  
+//  rotate_to(driving_dir);
+//  while (cp != to) {
+//    drive_fwd_one();
+//  }
+//  return true;
+//}
+//
+//void rotate_to(Direction d) {
+//  while (cd != d) {
+//    Serial.println("Rotating right! (waiting 5s)");
+//    delay(5000);
+//    Serial.println("Finished waiting on rotation.");
+//    const int target_distance = fds.Pulse();
+//    while (lds.Pulse() < target_distance) {
+////      driver.TurnRight();
+////      delay(50);
+//    }
+////    driver.Stop();
+//    cd = next_dir_r(cd);
+////    Serial.print("Current direction: ");
+////    Serial.println(cd);
+//  }
+//}
+//
+//void rot_fwd_empty() {
+////  rotate_to(next_dir_r(cd));
+//  Direction counter_dir = next_dir_r(next_dir_r(cd));
+//  int rounds = 0;
+//  while(fds.Pulse() != INVALID_DISTANCE) {
+//    Serial.println("No empty cell ahead, rotating!");
+////    top:
+//    rotate_to(next_dir_r(cd));
+////    if (cd == counter_dir && count++ != 1) {
+////      Serial.println("This is our counter direction and first circle, retry.");
+////      goto top;
+////    }
+//  }
+//}
+//
+//Direction next_dir_r(Direction d) {
+//  switch (d) {
+//    case Direction::N:
+//      return Direction::E;
+//    case Direction::E:
+//      return Direction::S;
+//    case Direction::S:
+//      return Direction::W;
+//    case Direction::W:
+//      return Direction::N;
+//  }
+//}
+//
+///* {0, 0}, {0, 1}  -> N
+// * {0, 0}, {1, 0}  -> E
+// * {0, 0}, {0, -1} -> S
+// * {0, 0}, {-1, 0} -> W
+// * {x, x}, {x, x}  -> NULL (same point)
+//   {0, 0}, {1, 1}  -> NULL (diagonal) */
+//Direction get_direction(Point one, Point two) {
+//  if (one.second == two.second) {
+//    if (one.first > two.first) {
+//      return Direction::W;
+//    } else if (one.first < two.first) {
+//      return Direction::E;
+//      }
+//  } else if (one.first == two.first) {
+//    if (one.second > two.second) {
+//      return Direction::S;
+//    } else if (one.second < two.second) {
+//    return Direction::N;
+//    }
+//  }
+//  return NULL;
+//}
+//
+//// Increments the point by one in the specified direction.
+//Point incr_point(Point point, Direction d) {
+//  switch (d) {
+//    case Direction::N:
+//      return {point.first, point.second + 1};
+//    case Direction::E:
+//      return {point.first + 1, point.second};
+//    case Direction::S:
+//      return {point.first, point.second - 1};
+//    case Direction::W:
+//      return {point.first - 1, point.second};
+//    default:
+//      return point;
+//  }
+//}
+//
+//void loop() {
+//  Serial.println("loop() called: ");
+////  if(true){return;}
+////  if(true){tcs.Read(); return;}
+//
+//  if (error != 0) {
+//    Serial.print("Error: ");
+//    Serial.println(error);
+//    return;
+//  }
+//  
+//  if (state == State::FINISHED) {
+//    Serial.println("Robot has finished!");
+//    return;
+//  }
+//
+//  if (state == State::FOUND_PATH) {
+//    Serial.println("Found shortest path, traversing points...");
+//    
+//    print_graph();
+//    
+//    for (auto const& point : s_path) {
+//      drive_to(point);
+//    }
+//    Serial.println("Finished traversing points! (waiting 5s)");
+//    delay(5000);
+//    if (tcs.Read() == Color::LIGHT_RED) {
+//      Serial.println("Found the finish after traversing!");
+//      state = State::FINISHED;
+//    } else {
+//      Serial.println("Finish was absent at the end of the shortest path.");
+//      error = 1;
+//    }
+//    return;
+//  }
+//
+//  drive:
+//  Serial.println("Attempting to drive to the next cell...");
+//  bool can_drive_fwd = drive_fwd_one();
+//  if (!can_drive_fwd) {
+//    Serial.println("Rotating!");
+//    rot_fwd_empty();
+//    goto drive;
+//  }
+//
+//  Serial.println("We drove to another cell.");
+//
+////  readcolor:
+//  Color c = tcs.Read();
+//  Serial.print("Read the color ");
+//  Serial.println(c);
+//  delay(500);
+//  Serial.flush();
+//  switch (c) {
+//    case Color::LIGHT_BLUE: 
+////      delay(5000);
+//      if (state != State::FOUND_END) {
+////        Serial.println("We have not found the end yet, error 2.");
+//        error = 2;
+//      } else {
+////        Serial.println("Executing Dijkstra.");
+//        dijkstra__pws();
+////        print_graph();
+////        Serial.println("Found the shortest path, setting state to FOUND_PATH");
+//        state = State::FOUND_PATH;
+//      
+////      Serial.println("Found the start!");
+//      break;
+//    }
+//    case Color::LIGHT_RED: {
+//      if (state != State::EXPLORING) {
+////        Serial.println("We should be back at the start by now! (error 3)");
+//        error = 3;
+//      } else {
+////        Serial.println("We found the end, assigning finish to current point.");
+//        state = State::FOUND_END;
+//        finish = cp;
+//      }
+////      Serial.println("Found the end!");
+//      break;
+//    }
+//    default:
+//      break;
+//  }
+//  
+//} // loop();
+//
+//void dijkstra__pws() {
+//  Serial.println(finish.first);
+//  Serial.println(finish.second);
+//  Serial.println(start.first);
+//  Serial.println(start.second);
+//  auto num_vertices = boost::num_vertices(graph);
+//  Serial.println(num_vertices);
+//  std::vector<vertex_descriptor> paths(16);
+////  paths.resize(num_vertices);
+////  std::vector<int> dist;
+////  dist.resize(num_vertices);
+////  
+////  auto pm = predecessor_map(boost::make_iterator_property_map(paths.begin(), get(boost::vertex_index, graph)));
+////  const auto dm = pm.distance_map(boost::make_iterator_property_map(dist.begin(), get(boost::vertex_index, graph)));
+////  vertex_descriptor start_vertex = boost::vertex(flatten_point(start), graph);
+////  boost::dijkstra_shortest_paths_no_color_map(graph, start_vertex, pm);
+//
+//  unsigned int index = flatten_point(finish);
+//  unsigned int start_index = flatten_point(finish);
+//  Point p = graph[index];
+////  s_path.push_back(p);
+////  while (index != start_index) {
+////    index = paths[index];
+////    index--;
+////    Point current = graph[index];
+////    s_path.push_back(current);
+////  }
+////
+////  s_path.push_back(graph[start_index]);
+////  std::reverse(s_path.begin(), s_path.end());
+//}
+//
+//// Drive one cell forward
+//bool drive_fwd_one() {
+//  if (fds.Pulse() != INVALID_DISTANCE) {
+//    return false; // If the distance to a wall can be measured, there is no cell ahead.
+//  }
+////
+////  /**
+////   * Drive forward until a major difference is found in either the right or left distance sensor, or until a timeout is exceeded (indicating a straight path to the next cell).
+////   * 
+////   * Scenario 1: When the robot (x) reaches the next cell (N), a significant distance difference is observed between the previous cell.
+////   * +---+---+---+
+////   * | R   N     |
+////   * +---+   +---+
+////   * |     X     |
+////   * +---+---+---+
+////   * 
+////   * Scenario 2: The robot does not find a significant distance difference so it stops after the timeout.
+////   * +---+---+---+
+////   * | R   N     |
+////   * +---+---+---+
+////   */
+////  const int fun_start_t = millis();
+////  driver.DriveForward(); // Start driving
+////  int margin = 3;
+////  do {
+////    static int dist_l = false;
+////    static int dist_r = false;
+////    
+////    int pulse_l = ceil( lds.Pulse() );
+////    int pulse_r = ceil( rds.Pulse() );
+////
+////    Serial.print(dist_l);
+////    Serial.print(" ");
+////    Serial.print(pulse_l);
+////    Serial.print(" ");
+////    Serial.print(dist_r);
+////    Serial.print(" ");
+////    Serial.print(pulse_r);
+////    Serial.print(" ");
+////    
+////    if (dist_l & dist_r) {
+////      bool l_check = pulse_l + margin >= dist_l && dist_l >= pulse_l - margin;
+////      bool r_check = pulse_r + margin >= dist_r && dist_r >= pulse_r - margin;
+////      Serial.print(" ");
+////      Serial.print(l_check);
+////      Serial.print(" ");
+////      Serial.print(r_check);
+////      if (!l_check || !r_check) {
+////        Serial.print(" Exit");
+////        break;
+////      }
+////    }
+////    
+////    dist_l = pulse_l;
+////    dist_r = pulse_r;
+////    Serial.println();
+////  } while (millis() < fun_start_t + 3000);
+////  
+////  delay(300); // Make sure the robot stops in the center of the cell.
+////  driver.Stop();
+//
+//  // Increment the current position.
+//  auto next = incr_point(cp, cd);
+//  activate_edge(cp, next);
+////  Serial.print("Activating edge: (");
+////  Serial.print(cp.first);
+////  Serial.print(", ");
+////  Serial.print(cp.second);
+////  Serial.print(") -- (");
+////  Serial.print(next.first);
+////  Serial.print(", ");
+////  Serial.print(next.second);
+////  Serial.println(")");
+//  cp = next;
+//  Serial.println("Drove forward one cell!(waiting 5s)");
+//  delay(5000);
+//  Serial.println("Finished waiting.");
+//  return true;
+//} // drive_forward_one_cell();
+//
+///** ------------------------------------------------------------------------------------------------- 
+// *  
+// *  Graphviz graph printer.
+// *  For some reason printing strings results in vague output so we print characters.
+// *  
+// *  -------------------------------------------------------------------------------------------------
+// */
+//
+//void print_graph() {
+//  Serial.println("graph maze {");
+//  Serial.print('\t');
+//  Serial.print('g');
+//  Serial.print('r');
+//  Serial.print('a');
+//  Serial.print('p');
+//  Serial.print('h');
+//  Serial.print(' ');
+//  Serial.print('[');
+//  Serial.print('s');
+//  Serial.print('p');
+//  Serial.print('l');
+//  Serial.print('i');
+//  Serial.print('n');
+//  Serial.print('e');
+//  Serial.print('s');
+//  Serial.print('=');
+//  Serial.print('t');
+//  Serial.print('r');
+//  Serial.print('u');
+//  Serial.print('e');
+//  Serial.println(']');
+//  Serial.println();
+//  Serial.print('\t');
+//  Serial.print('n');
+//  Serial.print('o');
+//  Serial.print('d');
+//  Serial.print('e');
+//  Serial.print(' ');
+//  Serial.print('[');
+//  Serial.print('s');
+//  Serial.print('h');
+//  Serial.print('a');
+//  Serial.print('p');
+//  Serial.print('e');
+//  Serial.print('=');
+//  Serial.print('c');
+//  Serial.print('i');
+//  Serial.print('r');
+//  Serial.print('c');
+//  Serial.print('l');
+//  Serial.print('e');
+//  Serial.print(',');
+//  Serial.print(' ');
+//  Serial.print('f');
+//  Serial.print('i');
+//  Serial.print('x');
+//  Serial.print('e');
+//  Serial.print('d');
+//  Serial.print('s');
+//  Serial.print('i');
+//  Serial.print('z');
+//  Serial.print('e');
+//  Serial.print('=');
+//  Serial.print('t');
+//  Serial.print('r');
+//  Serial.print('u');
+//  Serial.print('e');
+//  Serial.print(']');
+//  Serial.print(' ');
+//  Serial.println('{');
+//  auto vertices = boost::vertices(graph);
+//  vertices.second--;
+//  for (auto current_vertex_descriptor = vertices.first; current_vertex_descriptor != vertices.second; current_vertex_descriptor++) {
+//    if (boost::out_degree(*current_vertex_descriptor, graph) == 0) {
+//      continue;
+//    }
+//    
+//    const Point vertex = graph[*current_vertex_descriptor];
+//    Serial.print('\t');
+//    Serial.print('\t');
+//    Serial.print('"');
+//    Serial.print('(');
+//    Serial.print(vertex.first);
+//    Serial.print(',');
+//    Serial.print(' ');
+//    Serial.print(vertex.second);
+//    Serial.print(')');
+//    Serial.print('"');
+//    Serial.print(' ');
+//    Serial.print('[');
+//    Serial.print('p');
+//    Serial.print('o');
+//    Serial.print('s');
+//    Serial.print('=');
+//    Serial.print('"');
+//    Serial.print(vertex.first);
+//    Serial.print(',');
+//    Serial.print(' ');
+//    Serial.print(vertex.second);
+//    Serial.print('!');
+//    Serial.print('"');
+//    Serial.print(',');
+//    Serial.print(' ');
+//    Serial.print('l');
+//    Serial.print('a');
+//    Serial.print('b');
+//    Serial.print('e');
+//    Serial.print('l');
+//    Serial.print('=');
+//    Serial.print('"');
+//    
+//    if (vertex == start) {
+//      Serial.print('S');
+//    } else if (vertex == finish) {
+//      Serial.print('F');
+//    } else {
+//      char label = flatten_point(vertex) + 'A';
+//      Serial.print(label);
+//    }
+//    
+//    Serial.print('"');
+//    Serial.println(']');
+//  }
+//  Serial.print('\t');
+//  Serial.print('}');
+//  Serial.println();
+//  
+//  auto ed__ = boost::edges(graph);
+//  for (auto ced = ed__.first; ced != ed__.second; ++ced) {
+//    const Point source = graph[boost::source(*ced, graph)];
+//    const Point target = graph[boost::target(*ced, graph)];
+//    Serial.print('\t');
+//    Serial.print('"');
+//    Serial.print('(');
+//    Serial.print(source.first);
+//    Serial.print(',');
+//    Serial.print(' ');
+//    Serial.print(source.second);
+//    Serial.print(')');
+//    Serial.print('"');
+//    Serial.print(' ');
+//    Serial.print('-');
+//    Serial.print('-');
+//    Serial.print(' ');
+//    Serial.print('"');
+//    Serial.print('(');
+//    Serial.print(target.first);
+//    Serial.print(',');
+//    Serial.print(' ');
+//    Serial.print(target.second);
+//    Serial.print(')');
+//    Serial.print('"');
+//    Serial.print(' ');
+//    Serial.print('[');
+//    Serial.print('l');
+//    Serial.print('a');
+//    Serial.print('b');
+//    Serial.print('e');
+//    Serial.print('l');
+//    Serial.print('=');
+//    auto weight = get(boost::edge_weight, graph)[*ced];
+//    Serial.print(weight);
+//    if (is_edge_in_shortest_path(source, target)) {
+//      Serial.print(',');
+//      Serial.print(' ');
+//      Serial.print('c');
+//      Serial.print('o');
+//      Serial.print('l');
+//      Serial.print('o');
+//      Serial.print('r');
+//      Serial.print('=');
+//      Serial.print('r');
+//      Serial.print('e');
+//      Serial.print('d');
+//      Serial.print(',');
+//      Serial.print(' ');
+//      Serial.print('s');
+//      Serial.print('t');
+//      Serial.print('y');
+//      Serial.print('l');
+//      Serial.print('e');
+//      Serial.print('=');
+//      Serial.print('b');
+//      Serial.print('o');
+//      Serial.print('l');
+//      Serial.print('d');
+//    }
+//    Serial.println(']');
+//  }
+//  Serial.println('}');
+//}
+//#ifndef
